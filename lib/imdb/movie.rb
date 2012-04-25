@@ -84,17 +84,41 @@ module Imdb
     # Returns a array of the director hashes
     def directors
       directors = []
-      document.search("h5[text()^='Director'] ~ a").each do |a|
-        directors << Person.new(a['href'].sub(%r{^/name/nm(.*)/}, '\1'))
+      directors_link = document.css("table a[name='directors']").first
+      return directors unless directors_link
+      directors_doc = document.css("table a[name='directors']").first.parent.parent.parent.parent
+      directors_doc.search("a")[1..-1].each do |a|
+        id = a['href'].sub(%r{^/name/nm(.*)/}, '\1')
+        directors << Person.new(id)
       end
       directors
-      rescue []
+      
     end
-    
-    # Returns the name of the director
-    def director
-      document.search("h5[text()^='Director'] ~ a").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
+
+    def writers
+      writers = []
+      writer_ids = []
+      writers_link = document.css("table a[name='writers']").first
+      return writers unless writers_link
+      writers_doc = writers_link.parent.parent.parent.parent
+      writers_doc.search("a")[1..-1].each do |a|
+        id = a['href'].sub(%r{^/name/nm(.*)/}, '\1') 
+        if !writer_ids.include?(id) && !id.include?("/")
+          writer_ids << id 
+          writers << Person.new(id)
+        end
+      end
+      writers
     end
+
+    def stars
+      stars = []
+      base_doc.search("a[itemprop='actors']").each do |a|
+        stars << Person.new(a['href'].sub(%r{^/name/nm(.*)/}, '\1'))
+      end
+      stars
+    end
+
 
     # Returns the url to the "Watch a trailer" page
     def trailer_url
@@ -103,17 +127,17 @@ module Imdb
 
     # Returns an array of genres (as strings)
     def genres
-      document.search("h5[text()='Genre:'] ~ a[@href*=/Sections/Genres/']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
+      base_doc.search("a[itemprop='genre']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
     end
 
     # Returns an array of languages as strings.
     def languages
-      document.search("h5[text()='Language:'] ~ a[@href*=/language/']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
+      document.search("h5[text()='Language:'] ~ a[@href*='/language/']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
     end
 
     # Returns an array of countries as strings.
     def countries
-      document.search("h5[text()='Country:'] ~ a[@href*=/country/']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
+      document.search(".info  a[@href*='/country/']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
     end
 
     # Returns the duration of the movie in minutes as an integer.
@@ -123,7 +147,7 @@ module Imdb
 
     # Returns a string containing the plot.
     def plot
-      sanitize_plot(document.search("h5[text()='Plot:'] ~ div").first.inner_html) rescue nil
+      sanitize_plot(base_doc.search("p[itemprop='description']").first.inner_html.split("<a")[0].strip) rescue nil
     end
 
     # Returns a string containing the URL to the movie poster.
@@ -135,6 +159,10 @@ module Imdb
       when /^(http:.+?)\.[^\/]+$/
         $1 + '.jpg'
       end
+    end
+
+    def keywords
+      keywords_document.search("b.keyword a").map{ |link| link.inner_html.strip.imdb_unescape_html } 
     end
 
     # Returns a float containing the average user rating
@@ -149,7 +177,7 @@ module Imdb
 
     # Returns a string containing the tagline
     def tagline
-      document.search("h5[text()='Tagline:'] ~ div").first.inner_html.gsub(/<.+>.+<\/.+>/, '').strip.imdb_unescape_html rescue nil
+      document.search("h5[text()='Tagline:'] ~ div").first.inner_html.split("<a")[0].strip rescue nil
     end
 
     # Returns a string containing the mpaa rating and reason for rating
@@ -166,8 +194,12 @@ module Imdb
       if @title && !force_refresh
         @title
       else
-        @title = document.at("h1").inner_html.split('<span').first.strip.imdb_unescape_html rescue nil
+        @title = document.at("h1").inner_html.split('<span').first.strip.imdb_unescape_html.gsub(/"/, "") rescue nil
       end
+    end
+
+    def episode_title
+      document.at("h1 span em").inner_html.strip.imdb_unescape_html rescue nil
     end
 
     # Returns an integer containing the year (CCYY) the movie was released in.
@@ -180,16 +212,31 @@ module Imdb
       sanitize_release_date(document.search('h5[text()*=Release Date]').first.next_element.inner_html.to_s) rescue nil
     end
 
-    private
+    
 
     # Returns a new Nokogiri document for parsing.
     def document
       @document ||= Nokogiri(Imdb::Movie.find_by_id(@id))
     end
 
+    # Returns a new Nokogiri document for parsing.
+    def keywords_document
+      @keywords_document ||= Nokogiri(open("http://akas.imdb.com/title/tt#{@id}/keywords"))
+    end
+
     # Use HTTParty to fetch the raw HTML for this movie.
     def self.find_by_id(imdb_id)
       open("http://akas.imdb.com/title/tt#{imdb_id}/combined")
+    end
+    
+    # Use HTTParty to fetch the raw HTML for this movie.
+    def self.find_base_by_id(imdb_id)
+      open("http://akas.imdb.com/title/tt#{imdb_id}")
+    end
+
+
+    def base_doc
+      @base_doc ||= Nokogiri(Imdb::Movie.find_base_by_id(@id))
     end
 
     # Convenience method for search

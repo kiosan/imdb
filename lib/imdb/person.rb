@@ -1,5 +1,6 @@
 module Imdb
   class Person
+    attr_accessor :id
     def initialize(imdb_id)
       @id = imdb_id
     end
@@ -38,7 +39,7 @@ module Imdb
     end
     
     def photo
-      photo_document.at("img#primary-img").get_attribute('src') if photo_document 
+      photo_document.at("img#primary-img").get_attribute('src') if photo_document rescue nil
     end
     
     def filmography
