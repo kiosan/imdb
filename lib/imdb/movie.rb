@@ -19,7 +19,7 @@ module Imdb
       @also_known_as = also_known_as
     end
 
-    def awards      
+    def awards
       rows = awards_document.search('.awards table tr').select{ |n| n.search('td').count > 2 }
       result = rows.map do |row|
         elems = row.search('td')
@@ -36,7 +36,7 @@ module Imdb
       end
       result.compact!
     end
-    
+
     def awards_document
       @awards_document ||= Nokogiri(open( "http://akas.imdb.com/title/tt#{@id}/awards"))
     end
@@ -49,7 +49,7 @@ module Imdb
         tr.search("td.nm a") do |td|
           member[:person] = Person.new(td['href'].sub(%r{^/name/nm(.*)/}, '\1') )
         end
-        member[:character] = tr.search("td.char a").inner_html.strip.imdb_unescape_html   
+        member[:character] = tr.search("td.char a").inner_html.strip.imdb_unescape_html
         cast << member
       end
       cast
@@ -80,7 +80,7 @@ module Imdb
       }
       return memb_char
     end
-    
+
     # Returns a array of the director hashes
     def directors
       directors = []
@@ -92,7 +92,7 @@ module Imdb
         directors << Person.new(id)
       end
       directors
-      
+
     end
 
     def writers
@@ -102,9 +102,9 @@ module Imdb
       return writers unless writers_link
       writers_doc = writers_link.parent.parent.parent.parent
       writers_doc.search("a")[1..-1].each do |a|
-        id = a['href'].sub(%r{^/name/nm(.*)/}, '\1') 
+        id = a['href'].sub(%r{^/name/nm(.*)/}, '\1')
         if !writer_ids.include?(id) && !id.include?("/")
-          writer_ids << id 
+          writer_ids << id
           writers << Person.new(id)
         end
       end
@@ -162,7 +162,29 @@ module Imdb
     end
 
     def keywords
-      keywords_document.search("b.keyword a").map{ |link| link.inner_html.strip.imdb_unescape_html } 
+      keywords_document.search("b.keyword a").map{ |link| link.inner_html.strip.imdb_unescape_html }
+    end
+
+    def other_titles
+      res = release_document.search("#tn15content table")[1].search("tr td:first-child").map{|n| n.inner_html.strip.imdb_unescape_html }
+      return [] if res[0].start_with?("<a")
+      return res
+    end
+
+    def related_ids
+      uri = URI("http://www.imdb.com/widget/recommendations/_ajax/get_more_recs?count=12&start=0&specs=p13nsims:tt#{id}&caller_name=p13nsims-title")
+
+      req = Net::HTTP::Get.new(uri.request_uri)
+      req['Host'] = 'www.imdb.com'
+      req['Origin'] = 'http://www.imdb.com'
+      req['Referer'] = 'http://www.imdb.com/title/tt0071562/'
+      req['User-Agent'] = 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.95 Safari/537.11'
+
+      res = Net::HTTP.start(uri.hostname, uri.port) {|http|
+        http.request(req)
+      }
+      recs = JSON.parse(res.body)
+      recs["recommendations"].collect{|t| t["tconst"][-7..-1]}
     end
 
     # Returns a float containing the average user rating
@@ -212,7 +234,7 @@ module Imdb
       sanitize_release_date(document.search('h5[text()*=Release Date]').first.next_element.inner_html.to_s) rescue nil
     end
 
-    
+
 
     # Returns a new Nokogiri document for parsing.
     def document
@@ -224,11 +246,18 @@ module Imdb
       @keywords_document ||= Nokogiri(open("http://akas.imdb.com/title/tt#{@id}/keywords"))
     end
 
+    # Returns a new Nokogiri document for parsing.
+    def release_document
+      @release_document ||= Nokogiri(open("http://akas.imdb.com/title/tt#{@id}/releaseinfo"))
+    end
+
+
+
     # Use HTTParty to fetch the raw HTML for this movie.
     def self.find_by_id(imdb_id)
       open("http://akas.imdb.com/title/tt#{imdb_id}/combined")
     end
-    
+
     # Use HTTParty to fetch the raw HTML for this movie.
     def self.find_base_by_id(imdb_id)
       open("http://akas.imdb.com/title/tt#{imdb_id}")
