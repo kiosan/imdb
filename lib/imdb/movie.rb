@@ -127,7 +127,7 @@ module Imdb
 
     # Returns an array of genres (as strings)
     def genres
-      base_doc.search("a[itemprop='genre']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
+      base_doc.search("span[itemprop='genre']").map { |link| link.inner_html.strip.imdb_unescape_html } rescue []
     end
 
     # Returns an array of languages as strings.
