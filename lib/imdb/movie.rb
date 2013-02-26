@@ -113,7 +113,7 @@ module Imdb
 
     def stars
       stars = []
-      base_doc.search("a[itemprop='actors']").each do |a|
+      base_doc.search("div[itemprop='actors'] > a[itemprop='url']").each do |a|
         stars << Person.new(a['href'].sub(%r{^/name/nm(.*)/}, '\1'))
       end
       stars
