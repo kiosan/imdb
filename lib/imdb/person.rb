@@ -14,7 +14,7 @@ module Imdb
     end
     
     def birthdate
-      Date.parse(d.at("#overviewTable td[text()*='Date of Birth']").next_element.inner_text.split(",")[0]) rescue nil
+      Date.parse(bio_document.at("#overviewTable td[text()*='Date of Birth']").next_element.inner_text.split(",")[0]) rescue nil
     end
     
     def deathdate
