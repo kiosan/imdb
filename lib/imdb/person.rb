@@ -5,7 +5,8 @@ module Imdb
       @id = imdb_id
     end
     def name
-      bio_document.at("a[@class='main']").inner_text rescue nil
+
+      bio_document.at("h3[itemprop='name'] > a").inner_text
     end
 
     def real_name
@@ -13,10 +14,7 @@ module Imdb
     end
     
     def birthdate
-      
-      date_month = bio_document.at("h5[text()*='Date of Birth']").next_element.inner_text.strip rescue ""
-      year = bio_document.at("a[@href*='birth_year']").inner_text.strip rescue ""
-      Date.parse("#{date_month} #{year}") rescue nil
+      Date.parse(d.at("#overviewTable td[text()*='Date of Birth']").next_element.inner_text.split(",")[0]) rescue nil
     end
     
     def deathdate
